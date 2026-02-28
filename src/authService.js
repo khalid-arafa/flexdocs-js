@@ -72,23 +72,26 @@ export default class AuthService {
   /**
    * Register with email and password
    * @param {Object} params
-   * @param {string} params.name - User name
    * @param {string} params.email - User email
    * @param {string} params.password - User password
+   * @param {string} [params.name] - User name (optional, max 100 chars)
+   * @param {string} [params.avatar] - Avatar URL (optional, max 500 chars)
+   * @param {string[]} [params.roles] - User roles (optional)
    * @returns {Promise<Object>}
    */
-  async registerWithEmail({ name, email, password }) {
+  async registerWithEmail({ email, password, name, avatar, roles }) {
     try {
-      if (!name || typeof name !== "string" || name.trim().length === 0) {
-        throw new Error("Name is required");
-      }
-
       this.#validateEmail(email);
       this.#validatePassword(password);
 
+      const data = { email, password };
+      if (name != null) data.name = String(name).trim();
+      if (avatar != null) data.avatar = avatar;
+      if (roles != null) data.roles = roles;
+
       const result = await this.api.post({
         url: `${this.getUrl()}/register-with-email`,
-        data: { name: name.trim(), email, password },
+        data,
       });
 
       if (!result.ok) {
@@ -100,6 +103,65 @@ export default class AuthService {
       return result;
     } catch (error) {
       throw new Error(`Registration failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Login with an existing JWT token
+   * @param {Object} params
+   * @param {string} params.token - Existing JWT token
+   * @returns {Promise<Object>}
+   */
+  async loginWithToken({ token }) {
+    try {
+      if (!token || typeof token !== "string") {
+        throw new Error("Token is required");
+      }
+
+      const result = await this.api.post({
+        url: `${this.getUrl()}/login-with-token`,
+        data: { token },
+      });
+
+      if (!result.ok) {
+        throw new Error(
+          result.data?.message || `Token login failed: ${result.status}`
+        );
+      }
+
+      return result;
+    } catch (error) {
+      throw new Error(`Token login failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Login anonymously (no email/password required)
+   * @param {Object} [params] - Optional params
+   * @param {string} [params.name] - Guest display name
+   * @param {string} [params.avatar] - Avatar URL
+   * @returns {Promise<Object>}
+   */
+  async anonymousLogin(params = {}) {
+    try {
+      const data = {};
+      if (params.name != null) data.name = params.name;
+      if (params.avatar != null) data.avatar = params.avatar;
+
+      const result = await this.api.post({
+        url: `${this.getUrl()}/anonymous-login`,
+        data,
+      });
+
+      if (!result.ok) {
+        throw new Error(
+          result.data?.message || `Anonymous login failed: ${result.status}`
+        );
+      }
+
+      return result;
+    } catch (error) {
+      throw new Error(`Anonymous login failed: ${error.message}`);
     }
   }
 

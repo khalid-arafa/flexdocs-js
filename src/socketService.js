@@ -42,8 +42,7 @@ export default class SocketService {
               if (token) {
                 cb({
                   ...baseAuth,
-                  token,
-                  authorization: `Bearer ${token}`,
+                  userToken: token,
                 });
                 return;
               }
@@ -97,6 +96,12 @@ export default class SocketService {
       });
     } catch (error) {
       throw new Error(`Socket initialization failed: ${error.message}`);
+    }
+  }
+
+  setUserToken(token) {
+    if (this.socket) {
+      this.socket.emit("set-user-token", token || null);
     }
   }
 

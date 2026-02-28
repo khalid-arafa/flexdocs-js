@@ -29,30 +29,181 @@ export default class StorageService {
     });
   }
 
-  async delete({ url }) {
-    if (!url || typeof url !== "string") {
-      throw new Error("Invalid file URL");
+  /**
+   * Delete a file by its ID
+   * @param {Object} params
+   * @param {string} params.fileId - File ID to delete
+   * @returns {Promise<boolean>}
+   */
+  async deleteFile({ fileId }) {
+    if (!fileId || typeof fileId !== "string") {
+      throw new Error("File ID must be a non-empty string");
     }
 
     const result = await this.api.delete({
-      url: `${this.getUrl()}/delete`,
-      config: { params: { url } },
+      url: `${this.getUrl()}/files/${fileId}`,
     });
 
     return result.ok;
   }
 
-  async getFileInfo({ url }) {
-    if (!url || typeof url !== "string") {
-      throw new Error("Invalid file URL");
+  /**
+   * Get bucket contents (buckets and files)
+   * @param {Object} params
+   * @param {string} params.bucketId - Bucket ID or "home" for root
+   * @param {number} [params.page] - Page number (default 1)
+   * @param {number} [params.ipp] - Items per page (default 20)
+   * @returns {Promise<Object>} { totalCount, content }
+   */
+  async getBucketContent({ bucketId, page, ipp }) {
+    if (!bucketId || typeof bucketId !== "string") {
+      throw new Error("Bucket ID must be a non-empty string");
     }
 
+    const params = {};
+    if (page != null) params.page = page;
+    if (ipp != null) params.ipp = ipp;
+
     const result = await this.api.get({
-      url: `${this.getUrl()}/info`,
-      config: { params: { url } },
+      url: `${this.getUrl()}/buckets/${bucketId}/content`,
+      config: { params },
     });
 
     if (result.ok) return result.data;
+
+    throw new Error(
+      result.data?.message || `Failed to get bucket content: ${result.status}`
+    );
+  }
+
+  /**
+   * Search files and buckets by name
+   * @param {Object} params
+   * @param {string} params.searchTerm - Search term (min 1, max 200 chars)
+   * @param {string} [params.bucketId] - Scope search to a bucket
+   * @param {number} [params.page] - Page number
+   * @param {number} [params.ipp] - Items per page (max 100)
+   * @returns {Promise<Object>} { totalCount, content }
+   */
+  async search({ searchTerm, bucketId, page, ipp }) {
+    if (!searchTerm || typeof searchTerm !== "string") {
+      throw new Error("Search term must be a non-empty string");
+    }
+
+    const data = { searchTerm };
+    if (bucketId != null) data.bucketId = bucketId;
+    if (page != null) data.page = page;
+    if (ipp != null) data.ipp = ipp;
+
+    const result = await this.api.post({
+      url: `${this.getUrl()}/search`,
+      data,
+    });
+
+    if (result.ok) return result.data;
+
+    throw new Error(
+      result.data?.message || `Search failed: ${result.status}`
+    );
+  }
+
+  /**
+   * Create a new bucket
+   * @param {Object} params
+   * @param {string} params.name - Bucket name (max 100 chars)
+   * @param {string} [params.description] - Description (max 500 chars)
+   * @param {string} [params.parentId] - Parent bucket ID (null for root)
+   * @returns {Promise<Object>} Created bucket object
+   */
+  async createBucket({ name, description, parentId }) {
+    if (!name || typeof name !== "string") {
+      throw new Error("Bucket name must be a non-empty string");
+    }
+
+    const data = { name };
+    if (description != null) data.description = description;
+    if (parentId != null) data.parentId = parentId;
+
+    const result = await this.api.post({
+      url: `${this.getUrl()}/buckets`,
+      data,
+    });
+
+    if (result.ok) return result.data;
+
+    throw new Error(
+      result.data?.message || `Failed to create bucket: ${result.status}`
+    );
+  }
+
+  /**
+   * Update a bucket
+   * @param {Object} params
+   * @param {string} params.bucketId - Bucket ID
+   * @param {string} [params.name] - New name
+   * @param {string} [params.description] - New description
+   * @returns {Promise<Object>}
+   */
+  async updateBucket({ bucketId, name, description }) {
+    if (!bucketId || typeof bucketId !== "string") {
+      throw new Error("Bucket ID must be a non-empty string");
+    }
+
+    const data = {};
+    if (name != null) data.name = name;
+    if (description != null) data.description = description;
+
+    const result = await this.api.put({
+      url: `${this.getUrl()}/buckets/${bucketId}`,
+      data,
+    });
+
+    if (result.ok) return result.data;
+
+    throw new Error(
+      result.data?.message || `Failed to update bucket: ${result.status}`
+    );
+  }
+
+  /**
+   * Delete a bucket and all its contents recursively
+   * @param {Object} params
+   * @param {string} params.bucketId - Bucket ID
+   * @returns {Promise<boolean>}
+   */
+  async deleteBucket({ bucketId }) {
+    if (!bucketId || typeof bucketId !== "string") {
+      throw new Error("Bucket ID must be a non-empty string");
+    }
+
+    const result = await this.api.delete({
+      url: `${this.getUrl()}/buckets/${bucketId}`,
+    });
+
+    return result.ok;
+  }
+
+  /**
+   * Get file download URL
+   * @param {Object} params
+   * @param {string} params.fileId - File ID
+   * @param {string} params.filename - Filename with extension (e.g., "photo.jpg")
+   * @param {string} [params.size] - Image size: "small", "medium", or "large"
+   * @param {string} [params.token] - JWT token for private files
+   * @returns {string} Download URL
+   */
+  getFileUrl({ fileId, filename, size, token }) {
+    if (!fileId || !filename) {
+      throw new Error("fileId and filename are required");
+    }
+
+    let url = `${this.getUrl()}/${fileId}/${filename}`;
+    const params = [];
+    if (size) params.push(`size=${size}`);
+    if (token) params.push(`token=${token}`);
+    if (params.length > 0) url += `?${params.join("&")}`;
+
+    return url;
   }
 }
 

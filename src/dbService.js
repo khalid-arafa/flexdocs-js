@@ -7,6 +7,10 @@ export default class DbService {
     this.socket = socket;
   }
 
+  #getBaseUrl() {
+    return `${this.#creds.baseUrl}/projects/${this.#creds.projectCode}/db`;
+  }
+
   /**
    * Get document reference
    * @param {string} docPath - Document path (e.g., "users/user123")
@@ -42,6 +46,63 @@ export default class DbService {
       apiClient: this.api,
     });
   }
+
+  /**
+   * List all collections
+   * @param {Object} [params] - Optional params
+   * @param {Object} [params.where] - Filter object
+   * @param {number} [params.page] - Page number (default 1)
+   * @param {number} [params.limit] - Items per page (default 20, max 500)
+   * @returns {Promise<Object>} { collections, page, ipp, totalCount }
+   */
+  async collections(params = {}) {
+    try {
+      const data = {};
+      if (params.where != null) data.where = params.where;
+      if (params.page != null) data.page = params.page;
+      if (params.limit != null) data.limit = params.limit;
+
+      const result = await this.api.post({
+        url: `${this.#getBaseUrl()}/collections`,
+        data,
+      });
+
+      if (result.ok) return result.data;
+
+      throw new Error(
+        result.data?.message || `Failed to list collections: ${result.status}`
+      );
+    } catch (error) {
+      throw new Error(`List collections failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create a new collection
+   * @param {Object} params
+   * @param {string} params.name - Collection name
+   * @returns {Promise<Object>}
+   */
+  async createCollection({ name }) {
+    if (!name || typeof name !== "string") {
+      throw new Error("Collection name must be a non-empty string");
+    }
+
+    try {
+      const result = await this.api.post({
+        url: `${this.#getBaseUrl()}/collections/new`,
+        data: { name },
+      });
+
+      if (result.ok) return result.data;
+
+      throw new Error(
+        result.data?.message || `Failed to create collection: ${result.status}`
+      );
+    } catch (error) {
+      throw new Error(`Create collection failed: ${error.message}`);
+    }
+  }
 }
 
 // Collections
@@ -53,6 +114,7 @@ class CollectionRef {
   #query = {};
   #limit = 100;
   #skip = 0;
+  #page = null;
 
   constructor({ creds, colPath, socket, apiClient }) {
     this.colPath = colPath;
@@ -78,8 +140,13 @@ class CollectionRef {
         select: this.#selectedFields,
         query: this.#query,
         limit: this.#limit,
-        skip: this.#skip,
       };
+
+      if (this.#page != null) {
+        filters.page = this.#page;
+      } else {
+        filters.skip = this.#skip;
+      }
 
       const result = await this.apiClient.post({
         url: this.getUrl(),
@@ -119,6 +186,86 @@ class CollectionRef {
       );
     } catch (error) {
       throw new Error(`Collection add failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update multiple documents matching a filter
+   * @param {Object} params
+   * @param {Object} params.filter - MongoDB filter to match documents
+   * @param {Object} params.newData - Fields to update (uses $set)
+   * @returns {Promise<Object>}
+   */
+  async updateMany({ filter, newData }) {
+    if (!filter || typeof filter !== "object") {
+      throw new Error("Filter must be an object");
+    }
+    if (!newData || typeof newData !== "object") {
+      throw new Error("newData must be an object");
+    }
+
+    try {
+      const result = await this.apiClient.put({
+        url: this.getUrl(),
+        data: { filter, newData },
+      });
+
+      if (result.ok) return result.data;
+
+      throw new Error(
+        result.data?.message ||
+          `Failed to update documents: ${result.status}`
+      );
+    } catch (error) {
+      throw new Error(`Update many failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete multiple documents matching a filter
+   * @param {Object} params
+   * @param {Object} params.filter - MongoDB filter to match documents
+   * @returns {Promise<Object>}
+   */
+  async deleteMany({ filter }) {
+    if (!filter || typeof filter !== "object") {
+      throw new Error("Filter must be an object");
+    }
+
+    try {
+      const result = await this.apiClient.delete({
+        url: this.getUrl(),
+        config: { data: { filter } },
+      });
+
+      if (result.ok) return result.data;
+
+      throw new Error(
+        result.data?.message ||
+          `Failed to delete documents: ${result.status}`
+      );
+    } catch (error) {
+      throw new Error(`Delete many failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all field names in the collection
+   * @returns {Promise<Object>} { fields: string[] }
+   */
+  async getFilters() {
+    try {
+      const result = await this.apiClient.get({
+        url: this.getUrl() + "/filters",
+      });
+
+      if (result.ok) return result.data;
+
+      throw new Error(
+        result.data?.message || `Failed to get filters: ${result.status}`
+      );
+    } catch (error) {
+      throw new Error(`Get filters failed: ${error.message}`);
     }
   }
 
@@ -172,7 +319,7 @@ class CollectionRef {
 
   /**
    * Limit results
-   * @param {number} count - Limit count
+   * @param {number} count - Limit count (max 500)
    * @returns {CollectionRef}
    */
   limit(count) {
@@ -193,6 +340,20 @@ class CollectionRef {
       throw new Error("Skip must be a non-negative number");
     }
     this.#skip = count;
+    this.#page = null;
+    return this;
+  }
+
+  /**
+   * Set page number for pagination
+   * @param {number} num - Page number (starts at 1)
+   * @returns {CollectionRef}
+   */
+  page(num) {
+    if (typeof num !== "number" || num < 1) {
+      throw new Error("Page must be a positive number");
+    }
+    this.#page = num;
     return this;
   }
 
@@ -330,7 +491,7 @@ class DocumentRef {
   }
 
   /**
-   * Update document
+   * Update document (merges fields using $set)
    * @param {Object} data - Update data
    * @returns {Promise<boolean>}
    */
@@ -352,6 +513,32 @@ class DocumentRef {
       );
     } catch (error) {
       throw new Error(`Document update failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Replace entire document
+   * @param {Object} data - Replacement data
+   * @returns {Promise<boolean>}
+   */
+  async replace(data) {
+    if (!data || typeof data !== "object") {
+      throw new Error("Replace data must be an object");
+    }
+
+    try {
+      const result = await this.apiClient.put({
+        url: this.getUrl(),
+        data: { data, type: "replace" },
+      });
+
+      if (result.ok) return true;
+
+      throw new Error(
+        result.data?.message || `Failed to replace document: ${result.status}`
+      );
+    } catch (error) {
+      throw new Error(`Document replace failed: ${error.message}`);
     }
   }
 

@@ -56,6 +56,9 @@ const options = {
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
     chunkSize: 64 * 1024,     // Upload chunk size
+    getToken: async () => {   // User token for authenticated socket
+      return await getUserToken();
+    },
     onConnect: () => console.log('Connected'),
     onDisconnect: () => console.log('Disconnected'),
     onError: (err) => console.error(err)
@@ -70,9 +73,11 @@ const storage = getStorage(creds, options);
 ### Register
 ```javascript
 const result = await auth.registerWithEmail({
-  name: 'John Doe',
   email: 'john@example.com',
-  password: 'password123'
+  password: 'password123',
+  name: 'John Doe',           // optional
+  avatar: 'https://...',      // optional
+  roles: ['editor']           // optional
 });
 ```
 
@@ -81,6 +86,21 @@ const result = await auth.registerWithEmail({
 const result = await auth.loginWithEmail({
   email: 'john@example.com',
   password: 'password123'
+});
+```
+
+### Login with Token
+```javascript
+const result = await auth.loginWithToken({
+  token: 'existing-jwt-token'
+});
+```
+
+### Anonymous Login
+```javascript
+const result = await auth.anonymousLogin({
+  name: 'Guest User',   // optional
+  avatar: 'https://...' // optional
 });
 ```
 
@@ -111,7 +131,23 @@ await auth.logout();
 
 ## Database
 
-### Collections
+### Manage Collections
+
+#### List Collections
+```javascript
+const result = await db.collections({
+  page: 1,
+  limit: 20
+});
+// { collections: [{ name: 'users', documentsCount: 42 }], page: 1, ipp: 20, totalCount: 5 }
+```
+
+#### Create Collection
+```javascript
+await db.createCollection({ name: 'posts' });
+```
+
+### Collection Operations
 
 #### Get Documents
 ```javascript
@@ -135,6 +171,36 @@ const adults = await db.col('users')
   .sort({ createdAt: -1 })
   .limit(10)
   .get();
+```
+
+#### Pagination
+```javascript
+// Page-based
+const page2 = await db.col('users').page(2).limit(20).get();
+
+// Skip-based
+const results = await db.col('users').skip(40).limit(20).get();
+```
+
+#### Get Field Names
+```javascript
+const { fields } = await db.col('users').getFilters();
+// { fields: ['_id', 'name', 'email', 'age', 'createdAt'] }
+```
+
+#### Update Many Documents
+```javascript
+const result = await db.col('posts').updateMany({
+  filter: { status: 'draft' },
+  newData: { status: 'published' }
+});
+```
+
+#### Delete Many Documents
+```javascript
+const result = await db.col('posts').deleteMany({
+  filter: { status: 'archived' }
+});
 ```
 
 #### Watch Collection (Real-time)
@@ -167,6 +233,14 @@ const user = await db.doc('users/user123').get();
 await db.doc('users/user123').update({
   name: 'Updated Name',
   lastModified: new Date()
+});
+```
+
+#### Replace Document
+```javascript
+await db.doc('users/user123').replace({
+  name: 'Completely New Data',
+  email: 'new@example.com'
 });
 ```
 
@@ -229,7 +303,7 @@ const upload = storage.upload({
 const unsubscribe = upload.onProgress((uploads) => {
   uploads.forEach(u => {
     console.log(`${u.file.name}: ${u.progress}%`);
-    if (u.status === 'completed') {
+    if (u.status === 'complete') {
       console.log('URL:', u.url);
     }
     if (u.status === 'error') {
@@ -250,17 +324,65 @@ try {
 upload.cancel();
 ```
 
-### Delete File
+### Buckets
+
+#### Browse Bucket Content
 ```javascript
-await storage.delete({
-  url: 'https://api.flexdocs.io/storage/file123.jpg'
+const content = await storage.getBucketContent({
+  bucketId: 'home',  // or a specific bucket ID
+  page: 1,
+  ipp: 20
+});
+// { totalCount: 25, content: [{ name: 'images', type: 'bucket' }, ...] }
+```
+
+#### Create Bucket
+```javascript
+const bucket = await storage.createBucket({
+  name: 'avatars',
+  description: 'User avatars',
+  parentId: null   // null for root
 });
 ```
 
-### Get File Info
+#### Update Bucket
 ```javascript
-const info = await storage.getFileInfo({
-  url: 'https://api.flexdocs.io/storage/file123.jpg'
+await storage.updateBucket({
+  bucketId: 'bucket-id',
+  name: 'new-name',
+  description: 'Updated description'
+});
+```
+
+#### Delete Bucket
+```javascript
+await storage.deleteBucket({ bucketId: 'bucket-id' });
+```
+
+### Files
+
+#### Delete File
+```javascript
+await storage.deleteFile({ fileId: 'file-id' });
+```
+
+#### Search Files & Buckets
+```javascript
+const results = await storage.search({
+  searchTerm: 'photo',
+  bucketId: 'bucket-id',  // optional, scope search
+  page: 1,
+  ipp: 20
+});
+```
+
+#### Get File URL
+```javascript
+const url = storage.getFileUrl({
+  fileId: 'file-id',
+  filename: 'photo.jpg',
+  size: 'small',     // optional: 'small', 'medium', 'large'
+  token: 'jwt-token' // optional: for private files
 });
 ```
 
@@ -312,14 +434,6 @@ const usersCol: CollectionRef = db.col('users');
 3. **Cleanup subscriptions**: Always call unsubscribe functions
 4. **Validate inputs**: SDK validates inputs, but pre-validation is recommended
 5. **Connection handling**: Use `socket.isConnected()` to check connection state
-
-## Examples
-
-See `/examples` directory for complete working examples:
-- Authentication flow
-- Real-time chat
-- File upload with progress
-- CRUD operations
 
 ## License
 
