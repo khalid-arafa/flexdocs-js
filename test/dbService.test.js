@@ -176,6 +176,57 @@ test("renameCollection sends oldName and newName", async () => {
   assert.equal(result.success, true);
 });
 
+test("renameCollection rejects empty oldName", async () => {
+  const api = { async put() { return { ok: true, status: 200, data: {} }; } };
+  const db = new DbService({ creds, api, socket: {} });
+
+  await assert.rejects(
+    db.renameCollection({ oldName: "", newName: "articles" }),
+    /Old collection name must be a non-empty string/
+  );
+});
+
+test("renameCollection rejects empty newName", async () => {
+  const api = { async put() { return { ok: true, status: 200, data: {} }; } };
+  const db = new DbService({ creds, api, socket: {} });
+
+  await assert.rejects(
+    db.renameCollection({ oldName: "posts", newName: "" }),
+    /New collection name must be a non-empty string/
+  );
+});
+
+test("renameCollection encodes special characters in oldName", async () => {
+  const putCalls = [];
+  const api = {
+    async put(payload) {
+      putCalls.push(payload);
+      return { ok: true, status: 200, data: { success: true } };
+    },
+  };
+
+  const db = new DbService({ creds, api, socket: {} });
+  await db.renameCollection({ oldName: "my collection", newName: "my_collection" });
+
+  assert.equal(putCalls.length, 1);
+  assert.ok(putCalls[0].url.includes("my%20collection"));
+});
+
+test("renameCollection throws on server error", async () => {
+  const api = {
+    async put() {
+      return { ok: false, status: 400, data: { message: "Collection with this name already exists" } };
+    },
+  };
+
+  const db = new DbService({ creds, api, socket: {} });
+
+  await assert.rejects(
+    db.renameCollection({ oldName: "posts", newName: "users" }),
+    /Collection with this name already exists/
+  );
+});
+
 test("updateMany sends filter and newData", async () => {
   const putCalls = [];
   const api = {
