@@ -154,6 +154,28 @@ test("createCollection sends name", async () => {
   assert.equal(result.success, true);
 });
 
+test("renameCollection sends oldName and newName", async () => {
+  const putCalls = [];
+  const api = {
+    async put(payload) {
+      putCalls.push(payload);
+      return { ok: true, status: 200, data: { success: true } };
+    },
+  };
+  const socket = {};
+
+  const db = new DbService({ creds, api, socket });
+  const result = await db.renameCollection({ oldName: "posts", newName: "articles" });
+
+  assert.equal(putCalls.length, 1);
+  assert.equal(
+    putCalls[0].url,
+    "https://api.example.com/projects/project_123/db/collections/posts/rename"
+  );
+  assert.deepEqual(putCalls[0].data, { newName: "articles" });
+  assert.equal(result.success, true);
+});
+
 test("updateMany sends filter and newData", async () => {
   const putCalls = [];
   const api = {

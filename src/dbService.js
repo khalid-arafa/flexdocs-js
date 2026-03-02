@@ -103,6 +103,37 @@ export default class DbService {
       throw new Error(`Create collection failed: ${error.message}`);
     }
   }
+
+  /**
+   * Rename an existing collection
+   * @param {Object} params
+   * @param {string} params.oldName - Current collection name
+   * @param {string} params.newName - New collection name
+   * @returns {Promise<Object>}
+   */
+  async renameCollection({ oldName, newName }) {
+    if (!oldName || typeof oldName !== "string") {
+      throw new Error("Old collection name must be a non-empty string");
+    }
+    if (!newName || typeof newName !== "string") {
+      throw new Error("New collection name must be a non-empty string");
+    }
+
+    try {
+      const result = await this.api.put({
+        url: `${this.#getBaseUrl()}/collections/${encodeURIComponent(oldName)}/rename`,
+        data: { newName },
+      });
+
+      if (result.ok) return result.data;
+
+      throw new Error(
+        result.data?.message || `Failed to rename collection: ${result.status}`
+      );
+    } catch (error) {
+      throw new Error(`Rename collection failed: ${error.message}`);
+    }
+  }
 }
 
 // Collections

@@ -247,6 +247,7 @@ export class DbService {
     limit?: number;
   }): Promise<CollectionListResult>;
   createCollection(params: { name: string }): Promise<{ success: boolean }>;
+  renameCollection(params: { oldName: string; newName: string }): Promise<{ success: boolean }>;
 }
 
 export class CollectionRef {
