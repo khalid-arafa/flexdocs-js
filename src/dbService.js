@@ -1,3 +1,5 @@
+import { encodePath } from "./urlUtils.js";
+
 export default class DbService {
   #creds;
 
@@ -157,7 +159,7 @@ class CollectionRef {
   getUrl() {
     return `${this.#creds.baseUrl}/projects/${
       this.#creds.projectCode
-    }/db/${this.colPath.replace(/^\/+|\/+$/g, "")}`;
+    }/db/${encodePath(this.colPath)}`;
   }
 
   /**
@@ -498,7 +500,7 @@ class DocumentRef {
   getUrl() {
     return `${this.#creds.baseUrl}/projects/${
       this.#creds.projectCode
-    }/db/${this.docPath.replace(/^\/+|\/+$/g, "")}`;
+    }/db/${encodePath(this.docPath)}`;
   }
 
   /**

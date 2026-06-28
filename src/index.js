@@ -3,6 +3,7 @@ import AuthService from "./authService.js";
 import DbService from "./dbService.js";
 import SocketService from "./socketService.js";
 import StorageService from "./storageService.js";
+import { validateBaseUrl } from "./urlUtils.js";
 
 /**
  * Validates credentials object
@@ -21,9 +22,9 @@ function validateCredentials(creds) {
     throw new Error(`Missing required credentials: ${missing.join(", ")}`);
   }
 
-  if (typeof creds.baseUrl !== "string" || !creds.baseUrl.startsWith("http")) {
-    throw new Error("baseUrl must be a valid HTTP(S) URL");
-  }
+  // Requires a real http(s) URL and rejects plaintext http for non-loopback
+  // hosts (so the projectToken/JWT are never sent in cleartext).
+  validateBaseUrl(creds.baseUrl);
 }
 
 // Singleton instances

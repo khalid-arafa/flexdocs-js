@@ -1,4 +1,5 @@
 import SocketService from "./socketService.js";
+import { encodePathSegment, buildQueryString } from "./urlUtils.js";
 
 export default class StorageService {
   #creds;
@@ -41,7 +42,7 @@ export default class StorageService {
     }
 
     const result = await this.api.delete({
-      url: `${this.getUrl()}/files/${fileId}`,
+      url: `${this.getUrl()}/files/${encodePathSegment(fileId)}`,
     });
 
     return result.ok;
@@ -65,7 +66,7 @@ export default class StorageService {
     if (ipp != null) params.ipp = ipp;
 
     const result = await this.api.get({
-      url: `${this.getUrl()}/buckets/${bucketId}/content`,
+      url: `${this.getUrl()}/buckets/${encodePathSegment(bucketId)}/content`,
       config: { params },
     });
 
@@ -154,7 +155,7 @@ export default class StorageService {
     if (description != null) data.description = description;
 
     const result = await this.api.put({
-      url: `${this.getUrl()}/buckets/${bucketId}`,
+      url: `${this.getUrl()}/buckets/${encodePathSegment(bucketId)}`,
       data,
     });
 
@@ -177,7 +178,7 @@ export default class StorageService {
     }
 
     const result = await this.api.delete({
-      url: `${this.getUrl()}/buckets/${bucketId}`,
+      url: `${this.getUrl()}/buckets/${encodePathSegment(bucketId)}`,
     });
 
     return result.ok;
@@ -197,13 +198,12 @@ export default class StorageService {
       throw new Error("fileId and filename are required");
     }
 
-    let url = `${this.getUrl()}/${fileId}/${filename}`;
-    const params = [];
-    if (size) params.push(`size=${size}`);
-    if (token) params.push(`token=${token}`);
-    if (params.length > 0) url += `?${params.join("&")}`;
+    const params = {};
+    if (size) params.size = size;
+    if (token) params.token = token;
+    const query = buildQueryString(params);
 
-    return url;
+    return `${this.getUrl()}/${encodePathSegment(fileId)}/${encodePathSegment(filename)}${query}`;
   }
 }
 

@@ -386,6 +386,18 @@ const url = storage.getFileUrl({
 });
 ```
 
+## Security
+
+- **Use HTTPS.** `baseUrl` must be `https://` in production; plaintext `http://`
+  is only accepted for `localhost`/loopback during development, so the
+  `projectToken` and user JWT are never sent in cleartext.
+- **Token storage.** The SDK never persists tokens — it reads the user token on
+  demand via the `getToken` option. Keep tokens out of `localStorage` where XSS
+  can reach them; prefer in-memory or an `HttpOnly` cookie set by your backend.
+- **Don't share tokenized file URLs.** `getStorage().getFileUrl({ token })` puts
+  the token in the URL query string; avoid logging, persisting, or sharing those
+  URLs. Prefer a short-lived, single-use download token from your backend.
+
 ## Error Handling
 
 All methods throw errors that can be caught:
